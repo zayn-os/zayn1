@@ -9,25 +9,42 @@ import { useCampaign } from '../../../../contexts/CampaignContext';
 import { auth } from '../../../../firebase';
 import { GoogleAuthProvider, signInWithPopup, linkWithPopup, User as FirebaseUser } from 'firebase/auth';
 import { SettingsSection } from '../../../views/profile/SettingsSection';
-import { Clock, Volume2, Calendar, FileText, Bell, Zap, Code, Eye } from 'lucide-react';
+import { Clock, Volume2, Calendar, FileText, Bell, Zap, Code, Eye, BookOpen, Shield, Sword, Layout, Settings } from 'lucide-react';
 
 const renderToggle = (label: string, icon: React.ReactNode, prefKey: any, dispatch: any, state: any) => {
-    const isActive = state.user.preferences[prefKey];
+    const preferences = state.user?.preferences || {};
+    const isActive = preferences[prefKey];
     return (
         <button 
             onClick={() => dispatch.togglePreference(prefKey)}
-            className="w-full flex items-center justify-between p-3 rounded-lg bg-life-black border border-life-muted/20 hover:border-life-gold/50 transition-all group"
+            className="w-full flex items-center justify-between p-3 rounded-xl bg-life-black border border-life-muted/10 hover:border-life-gold/30 transition-all group"
         >
             <div className="flex items-center gap-3">
-                <div className={isActive ? 'text-life-gold' : 'text-life-muted'}>{icon}</div>
-                <span className="text-[10px] font-bold text-life-text uppercase tracking-wider">{label}</span>
+                <div className={`p-2 rounded-lg ${isActive ? 'bg-life-gold/10 text-life-gold' : 'bg-life-muted/10 text-life-muted'}`}>
+                    {icon}
+                </div>
+                <span className="text-xs font-bold text-life-text uppercase tracking-wide">{label}</span>
             </div>
-            <div className={`w-8 h-4 rounded-full relative transition-colors ${isActive ? 'bg-life-gold' : 'bg-life-muted/30'}`}>
-                <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${isActive ? 'left-4.5' : 'left-0.5'}`} />
+            <div className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${isActive ? 'bg-life-gold' : 'bg-life-muted/20'}`}>
+                <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 shadow-sm ${isActive ? 'left-6' : 'left-1'}`} />
             </div>
         </button>
     );
 };
+
+const ManualCard: React.FC<{ title: string, icon: React.ReactNode, onClick: () => void, color?: string }> = ({ title, icon, onClick, color = "text-life-gold" }) => (
+    <button 
+        onClick={onClick}
+        className="flex flex-col items-center justify-center p-4 rounded-xl bg-life-black border border-life-muted/10 hover:border-life-gold/30 hover:bg-life-gold/5 transition-all gap-3 group"
+    >
+        <div className={`p-3 rounded-full bg-life-muted/5 group-hover:bg-life-gold/10 transition-colors ${color}`}>
+            {icon}
+        </div>
+        <span className="text-[10px] font-bold text-life-muted group-hover:text-life-text uppercase tracking-wider text-center leading-tight">
+            {title}
+        </span>
+    </button>
+);
 
 export const SystemTab: React.FC = () => {
     const { state, dispatch } = useLifeOS();
@@ -119,8 +136,8 @@ export const SystemTab: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-right-2 pb-10">
-            {/* 🟢 SETTINGS SECTION */}
+        <div className="space-y-8 animate-in fade-in slide-in-from-right-2 pb-10">
+            {/* 🟢 ACCOUNT & DATA SECTION */}
             <SettingsSection 
                 user={user}
                 dispatch={dispatch}
@@ -132,42 +149,97 @@ export const SystemTab: React.FC = () => {
                 onLogout={handleLogout}
             />
 
-            <div className="h-px bg-life-muted/10 my-4" />
-
-            <div className="p-3 bg-life-gold/5 border border-life-gold/10 rounded text-[9px] text-life-gold/70 uppercase font-bold tracking-widest">
-                Core System Toggles & Calibration
-            </div>
-
-            <div className="w-full flex items-center justify-between p-3 rounded-lg bg-life-black border border-life-muted/20">
-                <div className="flex items-center gap-3">
-                    <Clock size={16} className="text-life-gold" />
-                    <span className="text-[10px] font-bold uppercase text-life-text">Day Start (Reset Hour)</span>
+            {/* 🟢 SYSTEM CONFIGURATION */}
+            <div className="space-y-4">
+                <div className="flex items-center gap-2 px-1">
+                    <Settings size={14} className="text-life-gold" />
+                    <h3 className="text-[10px] font-black text-life-muted uppercase tracking-widest">System Configuration</h3>
                 </div>
-                <select 
-                    value={state.user.preferences.dayStartHour ?? 4} 
-                    onChange={(e) => dispatch.setDayStartHour(parseInt(e.target.value))}
-                    className="bg-black border border-life-gold/30 rounded px-2 py-1 text-xs font-mono font-bold text-life-gold outline-none"
-                >
-                    {Array.from({ length: 24 }).map((_, i) => (
-                        <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
-                    ))}
-                </select>
+
+                <div className="grid gap-3">
+                    {/* Day Start Selector */}
+                    <div className="w-full flex items-center justify-between p-3 rounded-xl bg-life-black border border-life-muted/10">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-life-muted/10 text-life-gold">
+                                <Clock size={16} />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-xs font-bold text-life-text uppercase tracking-wide">Day Start Hour</span>
+                                <span className="text-[9px] text-life-muted">When the daily cycle resets</span>
+                            </div>
+                        </div>
+                        <div className="relative">
+                            <select 
+                                value={state.user.preferences.dayStartHour ?? 4} 
+                                onChange={(e) => dispatch.setDayStartHour(parseInt(e.target.value))}
+                                className="appearance-none bg-life-paper border border-life-muted/20 rounded-lg pl-3 pr-8 py-1.5 text-xs font-mono font-bold text-life-gold outline-none focus:border-life-gold/50 transition-colors cursor-pointer"
+                            >
+                                {Array.from({ length: 24 }).map((_, i) => (
+                                    <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
+                                ))}
+                            </select>
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-life-muted">
+                                <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    {renderToggle("Sound Effects", <Volume2 size={16} />, "soundEnabled", dispatch, state)}
+                    {renderToggle("Push Notifications", <Bell size={16} />, "deviceNotificationsEnabled", dispatch, state)}
+                    {renderToggle("Calendar Sync", <Calendar size={16} />, "showCalendarSync", dispatch, state)}
+                    {renderToggle("History Logs", <FileText size={16} />, "copyIncludesHistory", dispatch, state)}
+                </div>
             </div>
 
-            <div className="space-y-2">
-                {renderToggle("Neural Feedback (Sound)", <Volume2 size={16} />, "soundEnabled", dispatch, state)}
-                {renderToggle("Google Calendar Sync", <Calendar size={16} />, "showCalendarSync", dispatch, state)}
-                {renderToggle("AI Context: History Logs", <FileText size={16} />, "copyIncludesHistory", dispatch, state)}
-                {renderToggle("System Alerts (Push)", <Bell size={16} />, "deviceNotificationsEnabled", dispatch, state)}
+            {/* 🟢 MODULE TOGGLES */}
+            <div className="space-y-4">
+                <div className="flex items-center gap-2 px-1">
+                    <Layout size={14} className="text-life-gold" />
+                    <h3 className="text-[10px] font-black text-life-muted uppercase tracking-widest">Interface Modules</h3>
+                </div>
+                <div className="grid gap-3">
+                    {renderToggle("Spear Tip (Highlights)", <Zap size={16} />, "showHighlights", dispatch, state)}
+                    {renderToggle("Campaign Module", <Code size={16} />, "showCampaignUI", dispatch, state)}
+                    {renderToggle("Horus Eye (God Mode)", <Eye size={16} />, "unlockAllWeeks", dispatch, state)}
+                </div>
             </div>
 
-            <div className="h-px bg-life-muted/10 my-2" />
-
-            <div className="space-y-2">
-                {renderToggle("Show Spear Tip (Highlights)", <Zap size={16} />, "showHighlights", dispatch, state)}
-                {renderToggle("Campaign Module UI", <Code size={16} />, "showCampaignUI", dispatch, state)}
-                {renderToggle("Horus Eye (Unlock Weeks)", <Eye size={16} />, "unlockAllWeeks", dispatch, state)}
+            {/* 🟢 MANUALS GRID */}
+            <div className="space-y-4">
+                <div className="flex items-center gap-2 px-1">
+                    <BookOpen size={14} className="text-life-gold" />
+                    <h3 className="text-[10px] font-black text-life-muted uppercase tracking-widest">System Manuals</h3>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                    <ManualCard 
+                        title="Habit Protocol" 
+                        icon={<Shield size={20} />} 
+                        onClick={() => dispatch.setModal('manual', { manualId: 'habits' })} 
+                    />
+                    <ManualCard 
+                        title="Task & Codex" 
+                        icon={<CheckCircle size={20} />} 
+                        onClick={() => dispatch.setModal('manual', { manualId: 'tasks' })} 
+                    />
+                    <ManualCard 
+                        title="Raid Operations" 
+                        icon={<Sword size={20} />} 
+                        onClick={() => dispatch.setModal('manual', { manualId: 'raids' })} 
+                        color="text-life-crimson"
+                    />
+                    <ManualCard 
+                        title="Interface Guide" 
+                        icon={<Layout size={20} />} 
+                        onClick={() => dispatch.setModal('manual', { manualId: 'ui' })} 
+                    />
+                </div>
             </div>
         </div>
     );
 };
+
+// Helper component for manual card icon
+import { CheckCircle } from 'lucide-react';
