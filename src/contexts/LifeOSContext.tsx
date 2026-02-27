@@ -342,13 +342,36 @@ export const LifeOSProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
 
     const togglePreference = async (key: keyof UserProfile['preferences']) => {
-        if (key === 'deviceNotificationsEnabled' && !user.preferences.deviceNotificationsEnabled) {
-            const granted = await requestNotificationPermission();
-            updateUser({ preferences: { ...user.preferences, deviceNotificationsEnabled: granted } });
-            addToast(granted ? 'Notifications Enabled' : 'Permission Denied', granted ? 'success' : 'error');
+        if (key === 'deviceNotificationsEnabled') {
+            try {
+                const currentPrefs = user?.preferences || initialUser.preferences;
+                // Only request if currently disabled (enabling)
+                if (!currentPrefs.deviceNotificationsEnabled) {
+                    const granted = await requestNotificationPermission();
+                    updateUser({ preferences: { ...currentPrefs, deviceNotificationsEnabled: granted } });
+                    addToast(granted ? 'Notifications Enabled' : 'Permission Denied', granted ? 'success' : 'error');
+                } else {
+                    // Disabling
+                    updateUser({ preferences: { ...currentPrefs, deviceNotificationsEnabled: false } });
+                }
+            } catch (error) {
+                console.error('Failed to toggle notification:', error);
+                addToast('Failed to update setting', 'error');
+            }
             return;
         }
-        updateUser({ preferences: { ...user.preferences, [key]: !user.preferences[key] } });
+
+        // Sync path - use functional update for atomic safety
+        setUser(prev => {
+            const prefs = prev.preferences || initialUser.preferences;
+            return {
+                ...prev,
+                preferences: {
+                    ...prefs,
+                    [key]: !prefs[key]
+                }
+            };
+        });
     };
 
     return (
