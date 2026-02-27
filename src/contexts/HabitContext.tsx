@@ -87,16 +87,12 @@ const migrateHabit = (h: any): Habit => {
 
     // 🟢 MIGRATE STAT -> STATS[]
     let stats: Stat[] = h.stats || [];
-    if (!h.stats && h.stat) {
-        stats = [h.stat];
-    }
     if (stats.length === 0) {
         stats = [Stat.DIS]; // Default fallback
     }
 
     return {
         difficulty: Difficulty.NORMAL,
-        stats: stats,
         type: 'daily',
         history: [],
         streak: 0,
@@ -138,6 +134,8 @@ export const HabitProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const habitActions = useHabitActions(state, setState, soundEnabled);
 
     // 🟢 CHECK DAILY RESET (REFACTORED TO AVOID SIDE EFFECTS IN SETTER)
+    const lastProcessedRef = React.useRef<string | null>(null);
+
     useEffect(() => {
         const checkDailyReset = () => {
             const now = new Date();
@@ -154,8 +152,14 @@ export const HabitProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             const vNow = getVirtualDate(now);
             const vLast = getVirtualDate(lastOnline);
             const isNewDay = vNow.getDate() !== vLast.getDate() || vNow.getMonth() !== vLast.getMonth();
+            const todayIso = vNow.toISOString().split('T')[0]; // Use virtual date for consistency
+
+            // Prevent double processing or infinite loops
+            if (lastProcessedRef.current === todayIso) return;
 
             if (isNewDay) {
+                lastProcessedRef.current = todayIso; // Mark as processed immediately
+
                 const yesterday = new Date(now);
                 yesterday.setDate(yesterday.getDate() - 1);
                 const yesterdayIso = yesterday.toISOString();
@@ -165,6 +169,7 @@ export const HabitProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 let statPenalties: Partial<Record<Stat, number>> = {};
                 let disPenaltyTotal = 0;
                 let partialRestCount = 0;
+                let missedHabits: string[] = [];
 
                 const updatedHabits = habits.map(habit => {
                         // 🟢 0. SKIP ARCHIVED HABITS (Frozen in Time)
@@ -198,7 +203,7 @@ export const HabitProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                         if (remainingShields > 0) {
                             remainingShields--;
                             shieldsConsumed++;
-                            lifeDispatch.addToast(`🛡️ Shield protected: ${habit.title}`, 'info');
+                            // lifeDispatch.addToast(`🛡️ Shield protected: ${habit.title}`, 'info'); // Removed individual toast
                             return { ...habit, ...baseReset, status: 'pending' as DailyStatus, shieldUsed: true };
                         }
 
@@ -210,9 +215,10 @@ export const HabitProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                         });
                         
                         disPenaltyTotal += 1;
+                        missedHabits.push(habit.title);
                         
-                        const statsString = habit.stats.join(' & ');
-                        lifeDispatch.addToast(`⚠️ Missed ${habit.title}: -1 ${statsString} & -1 DIS`, 'error');
+                        // const statsString = habit.stats.join(' & ');
+                        // lifeDispatch.addToast(`⚠️ Missed ${habit.title}: -1 ${statsString} & -1 DIS`, 'error'); // Removed individual toast
 
                         return { ...habit, ...baseReset, streak: safeFallStreak, status: 'pending' as DailyStatus, shieldUsed: false };
                     }
@@ -225,13 +231,16 @@ export const HabitProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 if (shieldsConsumed > 0) {
                     lifeDispatch.updateUser({ shields: remainingShields });
                     playSound('success', soundEnabled);
+                    lifeDispatch.addToast(`🛡️ ${shieldsConsumed} Shields Used`, 'info');
                 } 
                 if (partialRestCount > 0) {
                     lifeDispatch.addToast(`${partialRestCount} habits partially completed (Rest Day recorded)`, 'info');
                 }
-                if (disPenaltyTotal > 0) {
+                if (missedHabits.length > 0) {
                     playSound('error', soundEnabled);
                     const currentStats = { ...lifeState.user.stats };
+                    
+                    // Apply penalties
                     Object.entries(statPenalties).forEach(([statKey, count]) => {
                         const key = statKey as Stat;
                         currentStats[key] = Math.max(0, currentStats[key] - (count as number));
@@ -239,6 +248,13 @@ export const HabitProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                     currentStats[Stat.DIS] = Math.max(0, currentStats[Stat.DIS] - disPenaltyTotal);
                     
                     lifeDispatch.updateUser({ stats: currentStats });
+                    
+                    // Consolidated Toast
+                    const missedText = missedHabits.length > 3 
+                        ? `${missedHabits.slice(0, 3).join(', ')}... (+${missedHabits.length - 3} more)`
+                        : missedHabits.join(', ');
+                    
+                    lifeDispatch.addToast(`⚠️ Missed ${missedHabits.length} Habits: ${missedText}`, 'error');
                 }
             }
         };
