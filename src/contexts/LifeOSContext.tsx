@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { LifeOSState, UserProfile, UIState, Toast, ModalType, ViewState, LootPayload, DailyMode, Stat, Difficulty, Theme, BadgeDefinition, FocusSessionData, SystemLog, CustomAudio } from '../types/types';
 import { usePersistence } from '../hooks/usePersistence';
+import { requestNotificationPermission } from '../utils/notifications';
 import { useThemeManager } from './hooks/useThemeManager';
 import { playSound } from '../utils/audio';
 import { BADGE_DATABASE } from '../data/badgeData';
@@ -118,14 +119,40 @@ interface LifeOSContextType {
         addTheme: (theme: Theme) => void;
         useItem: (itemId: string) => void;
         toggleEquip: (itemId: string) => void;
+        togglePreference: (key: keyof UserProfile['preferences']) => void;
     };
 }
 
 const LifeOSContext = createContext<LifeOSContextType | undefined>(undefined);
 
+// Helper to deep merge user data with initial state
+const migrateUser = (data: any): UserProfile => {
+    if (!data) return initialUser;
+    return {
+        ...initialUser,
+        ...data,
+        preferences: { 
+            ...initialUser.preferences, 
+            ...(data.preferences || {}) 
+        },
+        stats: { 
+            ...initialUser.stats, 
+            ...(data.stats || {}) 
+        },
+        metrics: { 
+            ...initialUser.metrics, 
+            ...(data.metrics || {}) 
+        },
+        // Ensure arrays are preserved if they exist, otherwise use initial
+        inventory: data.inventory || initialUser.inventory,
+        badges: data.badges || initialUser.badges,
+        unlockedThemes: data.unlockedThemes || initialUser.unlockedThemes,
+    };
+};
+
 export const LifeOSProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    // Persistence for User Profile
-    const [user, setUser] = usePersistence<UserProfile>('user_profile', initialUser, 'profile');
+    // Persistence for User Profile with Migration Strategy
+    const [user, setUser] = usePersistence<UserProfile>('user_profile', initialUser, 'profile', migrateUser);
     
     // Local UI State
     const [ui, setUI] = useState<UIState>(initialUI);
@@ -314,6 +341,16 @@ export const LifeOSProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         updateUser({ equippedItems: newEquipped });
     };
 
+    const togglePreference = async (key: keyof UserProfile['preferences']) => {
+        if (key === 'deviceNotificationsEnabled' && !user.preferences.deviceNotificationsEnabled) {
+            const granted = await requestNotificationPermission();
+            updateUser({ preferences: { ...user.preferences, deviceNotificationsEnabled: granted } });
+            addToast(granted ? 'Notifications Enabled' : 'Permission Denied', granted ? 'success' : 'error');
+            return;
+        }
+        updateUser({ preferences: { ...user.preferences, [key]: !user.preferences[key] } });
+    };
+
     return (
         <LifeOSContext.Provider value={{
             state,
@@ -343,7 +380,8 @@ export const LifeOSProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 setTheme,
                 addTheme,
                 useItem,
-                toggleEquip
+                toggleEquip,
+                togglePreference
             }
         }}>
             {children}
